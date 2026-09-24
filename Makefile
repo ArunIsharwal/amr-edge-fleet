@@ -27,9 +27,10 @@ web-only:
 
 # ─── Kill all running Go AMR nodes ─────────────────────────────────────────────
 kill-nodes:
-	@echo "🛑 Killing all AMR Go nodes..."
-	@pkill -f "main.go --port=808" || true
-	@pkill -f "amr-fleet" || true
+	@echo "🛑 Stopping AMR Go backend processes..."
+	@fuser -k -9 8081/tcp 8082/tcp 8083/tcp 2>/dev/null || true
+	@pkill -9 -f "--port=808" 2>/dev/null || true
+	@pkill -9 -f "amr-fleet" 2>/dev/null || true
 	@echo "✅ All nodes killed."
 
 # ─── Production Build: Vite embed → standalone Go binary ───────────────────────

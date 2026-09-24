@@ -55,8 +55,8 @@ export const RobotCard: React.FC<RobotCardProps> = ({ bot, onTogglePower, backen
               <Wifi className="w-2.5 h-2.5" />live
             </span>
           ) : (
-            <span className="text-[9px] text-slate-500 flex items-center gap-0.5">
-              <WifiOff className="w-2.5 h-2.5" />sim
+            <span className="text-[9px] text-red-400 flex items-center gap-0.5">
+              <WifiOff className="w-2.5 h-2.5" />off
             </span>
           )}
         </div>

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 
 export interface Position {
   x: number;
@@ -33,9 +33,6 @@ const STATUS_COLORS: Record<string, string> = {
   OFFLINE_SIMULATED: '#475569',
   DELIVERING: '#10b981',
 };
-
-const SHELF_A = { x: '20%', y: '15%', w: '14%', h: '65%' };
-const SHELF_B = { x: '66%', y: '15%', w: '14%', h: '65%' };
 
 export const GridCanvas: React.FC<GridCanvasProps> = ({
   robots,
