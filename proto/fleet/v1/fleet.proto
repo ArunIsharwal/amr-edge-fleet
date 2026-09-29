@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package fleet.v1;
+
+option go_package = "sih-amr-fleet/pkg/proto/fleet/v1;fleetv1";
+
+message Position {
+  double x = 1;
+  double y = 2;
+  int64 timestamp_ms = 3;
+}
+
+message Point {
+  double x = 1;
+  double y = 2;
+}
+
+message Task {
+  string id = 1;
+  Point pickup = 2;
+  Point dropoff = 3;
+  int32 priority = 4;
+  int64 created_at = 5;
+  string status = 6; // "NAVIGATING_PICKUP", "DELIVERING", "COMPLETED"
+  string assigned_to = 7;
+}
+
+message RobotState {
+  string robot_id = 1;
+  Position current_pos = 2;
+  repeated Position history = 3;
+  Position intended_pos = 4;
+  Position target_pos = 5;
+  double battery_pct = 6;
+  string status = 7; // "IDLE", "NAVIGATING_PICKUP", "DELIVERING", "YIELDING", "REPLANNING", "OFFLINE_SIMULATED"
+  Task current_task = 8;
+  int32 tasks_completed = 9;
+  repeated Point path = 10;
+  int32 priority_score = 11;
+  int64 last_heartbeat_ms = 12;
+  bool is_online = 13;
+  int32 port = 14;
+}
+
+message SyncPayload {
+  RobotState sender = 1;
+  bool yield_acknowledged = 2;
+}
+
+message SyncResponsePayload {
+  RobotState receiver = 1;
+  bool yield_acknowledged = 2;
+}
+
+message DashboardCommand {
+  string command_type = 1; // "DISPATCH_TASK", "BLOCK_AISLE", "CLEAR_AISLES", "TOGGLE_POWER", "SET_MODE"
+  Task task = 2;
+  double block_x = 3;
+  double block_y = 4;
+  bool enable = 5;
+  string mode = 6;
+  string target_robot_id = 7;
+}
+
+message FleetTelemetryRequest {
+  string client_id = 1;
+}
+
+message FleetTelemetry {
+  map<string, RobotState> robots = 1;
+  repeated Task tasks = 2;
+  int32 potential_collisions = 3;
+  int32 total_tasks_completed = 4;
+  string mode = 5;
+  repeated string logs = 6;
+}
+
+message AssignTaskRequest {
+  Task task = 1;
+}
+
+message AssignTaskResponse {
+  string status = 1;
+  string robot_id = 2;
+  Task task = 3;
+}
+
+message ToggleNodeRequest {
+  string robot_id = 1;
+  bool enable = 2;
+  bool block_aisle = 3;
+  double blocked_x = 4;
+  double blocked_y = 5;
+  string mode = 6;
+}
+
+message ToggleNodeResponse {
+  string status = 1;
+}
+
+service FleetService {
+  // Bi-directional 10Hz stream for P2P inter-robot mesh over HTTP/3 QUIC
+  rpc StreamP2PMesh(stream SyncPayload) returns (stream SyncResponsePayload);
+
+  // 10Hz Server Streaming RPC for React Dashboard (Telemetry Downstream)
+  rpc StreamFleetTelemetry(FleetTelemetryRequest) returns (stream FleetTelemetry);
+
+  // Unary fallback RPCs
+  rpc AssignTask(AssignTaskRequest) returns (AssignTaskResponse);
+  rpc ToggleNode(ToggleNodeRequest) returns (ToggleNodeResponse);
+}
