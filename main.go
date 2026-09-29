@@ -10,10 +10,12 @@ import (
 	"flag"
 	"io/fs"
 	"log"
+	"math"
 	"math/big"
 	mathrand "math/rand"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,6 +25,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"sih-amr-fleet/pkg/node"
+	"sih-amr-fleet/pkg/proto/fleet/v1/fleetv1connect"
 )
 
 // Embedded Vite React UI static files for single-binary production build
@@ -56,6 +59,20 @@ func generateSelfSignedCert() tls.Certificate {
 	}
 }
 
+// Preset start positions in open corridors (18m x 10m grid) to prevent overlap on spawn
+var PresetPositions = map[string]node.Point{
+	"AMR-01": {X: 1.0, Y: 1.0},
+	"AMR-02": {X: 16.5, Y: 1.0},
+	"AMR-03": {X: 1.0, Y: 9.0},
+	"AMR-04": {X: 16.5, Y: 9.0},
+	"AMR-05": {X: 6.0, Y: 1.0},
+	"AMR-06": {X: 11.0, Y: 1.0},
+	"AMR-07": {X: 6.0, Y: 9.0},
+	"AMR-08": {X: 11.0, Y: 9.0},
+	"AMR-09": {X: 1.0, Y: 5.0},
+	"AMR-10": {X: 16.5, Y: 5.0},
+}
+
 func main() {
 	mathrand.Seed(time.Now().UnixNano())
 
@@ -68,30 +85,44 @@ func main() {
 	if *peersFlag != "" {
 		peers = strings.Split(*peersFlag, ",")
 	} else {
-		// Default local ports for 3-node demo
-		defaultPorts := []string{"8081", "8082", "8083"}
-		for _, p := range defaultPorts {
-			if p != *port {
-				peers = append(peers, "http://localhost:"+p)
+		// Default peer discovery range: ports 8081 through 8090
+		for p := 8081; p <= 8090; p++ {
+			pStr := strconv.Itoa(p)
+			if pStr != *port {
+				peers = append(peers, "http://localhost:"+pStr)
 			}
 		}
 	}
 
-	startX := mathrand.Float64()*8.0 + 1.0
-	startY := mathrand.Float64()*8.0 + 1.0
+	startPos, found := PresetPositions[*id]
+	if !found {
+		pNum, _ := strconv.Atoi(*port)
+		offset := (pNum - 8081) % 10
+		startPos = node.Point{
+			X: math.Max(1.0, math.Min(16.5, float64((offset*3)%17)+1.0)),
+			Y: math.Max(1.0, math.Min(9.0, float64((offset*2)%9)+1.0)),
+		}
+	}
 
-	amrNode := node.NewRobotNode(*id, startX, startY, peers)
+	amrNode := node.NewRobotNode(*id, startPos.X, startPos.Y, peers)
 
 	// Start P2P Sync background engine over QUIC
 	go amrNode.StartP2PSyncLoop()
 
 	mux := http.NewServeMux()
 
-	// ConnectRPC / HTTP API endpoints
+	// Register ConnectRPC FleetService Handler (/fleet.v1.FleetService/)
+	fleetServer := node.NewFleetServiceServer(amrNode)
+	path, connectHandler := fleetv1connect.NewFleetServiceHandler(fleetServer)
+	mux.Handle(path, connectHandler)
+
+	// Legacy REST / JSON fallback endpoints
 	mux.HandleFunc("/api/sync", amrNode.HandleSyncState)
 	mux.HandleFunc("/api/status", amrNode.HandleGetRobotStatus)
 	mux.HandleFunc("/api/toggle", amrNode.HandleToggleOnline)
 	mux.HandleFunc("/api/metrics", amrNode.HandleGetMetrics)
+	mux.HandleFunc("/api/task", amrNode.HandleAssignTask)
+	mux.HandleFunc("/api/tasks", amrNode.HandleGetTasks)
 
 	// Embedded Vite React UI Static Handler
 	distSubFS, err := fs.Sub(webDist, "web/dist")
@@ -130,7 +161,7 @@ func main() {
 	}()
 
 	log.Printf("🚀 [%s] Edge AMR Node listening on :%s (ConnectRPC over HTTP/2 & quic-go HTTP/3)", *id, *port)
-	log.Printf("📡 Connected P2P Peers: %v", peers)
+	log.Printf("📡 Connected P2P Peers: %d nodes registered", len(peers))
 
 	h2Server := &http2.Server{}
 	err = http.ListenAndServe(":"+*port, h2c.NewHandler(corsHandler, h2Server))

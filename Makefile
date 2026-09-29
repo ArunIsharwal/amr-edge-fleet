@@ -3,33 +3,40 @@
 # Default target
 all: build
 
-# ─── Run Dev: Vite HMR frontend + all 3 Go P2P AMR nodes ───────────────────
-dev:
-	@echo "🔥 Starting Full SIH AMR Fleet Dev (Vite + 3 Go P2P Nodes)..."
-	@npx concurrently --kill-others \
-		"cd web && npm run dev" \
-		"go run main.go --port=8081 --id=AMR-01" \
-		"go run main.go --port=8082 --id=AMR-02" \
-		"go run main.go --port=8083 --id=AMR-03"
+# Number of Go nodes to launch (default: 4, can override with COUNT=6 or COUNT=10)
+COUNT ?= 4
 
-# ─── Run only the 3 Go P2P nodes (if you want Vite running separately) ───────
-run-nodes-only:
-	@echo "🚀 Spawning 3 AMR P2P Edge Nodes on ports 8081, 8082, 8083..."
-	@go run main.go --port=8081 --id=AMR-01 &
-	@go run main.go --port=8082 --id=AMR-02 &
-	@go run main.go --port=8083 --id=AMR-03 &
-	@echo "✅ 3 AMR Nodes Active! (kill with: make kill-nodes)"
+# ─── Run Dev: Vite HMR frontend + 4 Go P2P AMR nodes ───────────────────
+dev: build
+	@echo "🔥 Starting SIH AMR Fleet Dev (Vite + $(COUNT) Go P2P Nodes)..."
+	@trap '$(MAKE) kill-nodes' EXIT INT TERM; \
+	for i in $$(seq 1 $(COUNT)); do \
+		port=$$((8080 + i)); \
+		id=AMR-$$(printf "%02d" $$i); \
+		echo "🚀 Spawning node $$id on port $$port..."; \
+		nohup ./bin/amr-fleet --port=$$port --id=$$id >/dev/null 2>&1 & \
+	done; \
+	cd web && npm run dev
 
-# ─── Run only Vite frontend (client-side simulation mode) ─────────────────────
+# ─── Run Go P2P nodes (default 4, configurable via COUNT=N) ───────────
+run-nodes-only: build
+	@echo "🚀 Spawning $(COUNT) AMR P2P Edge Nodes on ports 8081..$(shell expr 8080 + $(COUNT))..."
+	@for i in $$(seq 1 $(COUNT)); do \
+		port=$$((8080 + i)); \
+		id=AMR-$$(printf "%02d" $$i); \
+		nohup ./bin/amr-fleet --port=$$port --id=$$id >/dev/null 2>&1 & \
+	done
+	@echo "✅ $(COUNT) AMR Nodes Active! (kill with: make kill-nodes)"
+
+# ─── Run only Vite frontend ─────────────────────────────────────────────
 web-only:
-	@echo "🌐 Starting Vite frontend (client-side simulation — no Go nodes needed)..."
+	@echo "🌐 Starting Vite frontend..."
 	@cd web && npm run dev
 
 # ─── Kill all running Go AMR nodes ─────────────────────────────────────────────
 kill-nodes:
 	@echo "🛑 Killing all AMR Go nodes..."
-	@pkill -f "main.go --port=808" || true
-	@pkill -f "amr-fleet" || true
+	@pkill -x amr-fleet || true
 	@echo "✅ All nodes killed."
 
 # ─── Production Build: Vite embed → standalone Go binary ───────────────────────
@@ -40,7 +47,6 @@ build:
 	@mkdir -p bin
 	@go build -ldflags="-s -w" -o bin/amr-fleet main.go
 	@echo "✅ Production Binary: ./bin/amr-fleet"
-	@echo "   Run single node: ./bin/amr-fleet --port=8081 --id=AMR-01"
 
 # ─── ARM64 Cross-Compilation for Raspberry Pi / Jetson Nano ────────────────────
 build-arm:
@@ -51,20 +57,14 @@ build-arm:
 	@GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/amr-fleet-arm64 main.go
 	@echo "✅ ARM64 Binary: ./bin/amr-fleet-arm64"
 
-# ─── Original 3-node demo (background processes) ───────────────────────────────
-run-demo:
-	@echo "🚀 Spawning 3 Edge AMR Nodes on ports 8081, 8082, 8083..."
-	@go run main.go --port=8081 --id=AMR-01 &
-	@go run main.go --port=8082 --id=AMR-02 &
-	@go run main.go --port=8083 --id=AMR-03 &
-	@echo "✅ 3 AMR Nodes Active in P2P Mesh!"
+# ─── 4-node demo (background processes) ────────────────────────────────────────
+run-demo: run-nodes-only
 
 help:
 	@echo "SIH AMR Fleet — Edge-AI Distributed Fleet Coordination"
 	@echo ""
-	@echo "  make dev           — Full dev: Vite + 3 Go P2P nodes (recommended)"
-	@echo "  make web-only      — Frontend only (client-side simulation, no Go)"
-	@echo "  make run-nodes-only— 3 Go nodes only (run Vite separately)"
+	@echo "  make dev           — Full dev: Vite + 4 Go P2P nodes (recommended)"
+	@echo "  make run-nodes-only— Launch Go nodes (default COUNT=4, e.g. COUNT=6)"
 	@echo "  make kill-nodes    — Kill all running Go nodes"
 	@echo "  make build         — Production binary (embedded UI)"
 	@echo "  make build-arm     — ARM64 binary for Raspberry Pi/Jetson Nano"
