@@ -8,8 +8,8 @@ const TOGGLE_NODE_PATH = '/fleet.v1.FleetService/ToggleNode';
 
 const GATEWAY_URL = (
   import.meta.env.VITE_GATEWAY_URL ||
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
-    ? 'http://localhost:8080'
+  (typeof window !== 'undefined'
+    ? (window.location.port === '5173' ? 'http://localhost:8080' : window.location.origin)
     : 'https://amr-edge-fleet.onrender.com')
 ).replace(/\/+$/, '');
 
