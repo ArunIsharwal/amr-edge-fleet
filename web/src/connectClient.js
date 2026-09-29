@@ -6,14 +6,19 @@ const STREAM_TELEMETRY_PATH = '/fleet.v1.FleetService/StreamFleetTelemetry';
 const ASSIGN_TASK_PATH = '/fleet.v1.FleetService/AssignTask';
 const TOGGLE_NODE_PATH = '/fleet.v1.FleetService/ToggleNode';
 
-const GATEWAY_URL = (import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080').replace(/\/+$/, '');
+const GATEWAY_URL = (
+  import.meta.env.VITE_GATEWAY_URL ||
+  (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+    ? 'http://localhost:8080'
+    : 'https://amr-edge-fleet.onrender.com')
+).replace(/\/+$/, '');
 
 /**
  * Creates a ConnectRPC streaming transport for connecting to an edge node
  */
 export function createFleetClient(port) {
   const baseURL = `${GATEWAY_URL}/node/${port}`;
-  
+
   return {
     // Continuous 10Hz Server-Sent / ReadableStream Telemetry Subscribing
     async *streamTelemetry(onCommandCallback) {

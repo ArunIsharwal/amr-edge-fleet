@@ -134,7 +134,7 @@ func (s *FleetServiceServer) StreamP2PMesh(
 				}
 			}
 
-			return s.node.GetSnapshot(), localYieldAck, nil
+			return s.node.getSnapshotLocked(), localYieldAck, nil
 		}()
 
 		if processErr != nil {
@@ -232,7 +232,7 @@ func (s *FleetServiceServer) buildFleetTelemetry() *v1.FleetTelemetry {
 	defer s.node.mu.RUnlock()
 
 	robotsMap := make(map[string]*v1.RobotState)
-	mySnap := RobotStateToProto(s.node.GetSnapshot())
+	mySnap := RobotStateToProto(s.node.getSnapshotLocked())
 	robotsMap[s.node.ID] = mySnap
 
 	for id, peerState := range s.node.PeerStates {

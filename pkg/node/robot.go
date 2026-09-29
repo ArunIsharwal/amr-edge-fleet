@@ -490,7 +490,10 @@ func (r *RobotNode) StepSimulation() {
 func (r *RobotNode) GetSnapshot() RobotState {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.getSnapshotLocked()
+}
 
+func (r *RobotNode) getSnapshotLocked() RobotState {
 	hist := make([]Position, len(r.History))
 	copy(hist, r.History)
 
@@ -519,3 +522,4 @@ func (r *RobotNode) GetSnapshot() RobotState {
 		IsOnline:        r.IsOnline,
 	}
 }
+
